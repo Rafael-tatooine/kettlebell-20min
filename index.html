@@ -50,7 +50,7 @@
       const $ = (id) => document.getElementById(id);
       const b64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
       const toB64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf)));
-      const enc = await fetch('./app.enc?v=12650339e3a6', { cache: 'no-cache' }).then((r) => r.json());
+      const enc = await fetch('./app.enc?v=6e4fde4b9a45', { cache: 'no-cache' }).then((r) => r.json());
       const keyName = PREFIX + enc.salt;
       for (const k of Object.keys(localStorage)) if (k.startsWith(PREFIX) && k !== keyName) localStorage.removeItem(k);
 
