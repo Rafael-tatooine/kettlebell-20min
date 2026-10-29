@@ -1,0 +1,12 @@
+{
+  "name": "20 минут с гирей",
+  "short_name": "Гиря 20",
+  "description": "Тренировки с гирей по 20 минут с 3D-разбором техники",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0d0f13",
+  "theme_color": "#0d0f13",
+  "lang": "ru",
+  "icons": [{ "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

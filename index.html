@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0d0f13" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>20 минут с гирей — вход</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <script type="importmap">
+      { "imports": { "three": "./vendor/three/three.module.js", "three-core": "./vendor/three/three.core.js", "three-addons/": "./vendor/three/" } }
+    </script>
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-height: 100dvh; display: grid; place-items: center; padding: 24px;
+        background: radial-gradient(900px 500px at 70% -10%, #1b2030 0%, transparent 60%), #0d0f13; color: #eceff4;
+        font: 400 16px/1.5 -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, Arial, sans-serif; }
+      .gate { width: min(100%, 380px); display: grid; gap: 16px; padding: 28px 24px; border-radius: 20px;
+        background: linear-gradient(180deg, #1d222b, #171b22); border: 1px solid #272d38; }
+      .gate svg { width: 44px; height: 44px; color: #ff7a1a; }
+      h1 { margin: 0; font-size: 26px; letter-spacing: -0.01em; }
+      p { margin: 0; color: #9ba4b4; font-size: 15px; }
+      label { display: grid; gap: 6px; font-size: 14px; color: #c5ccd8; }
+      input[type=password] { font: inherit; padding: 12px 14px; border-radius: 12px; border: 1px solid #323a47; background: #0f1216; color: #eceff4; }
+      input[type=password]:focus { outline: 2px solid #62b6ff; outline-offset: 1px; }
+      .remember { display: flex; align-items: center; gap: 8px; }
+      button { font: inherit; font-weight: 650; min-height: 48px; border: 0; border-radius: 999px; cursor: pointer;
+        background: linear-gradient(180deg, #ff8a2e, #f26b0c); color: #1a0d03; }
+      button:disabled { opacity: 0.6; cursor: progress; }
+      .error { color: #ff6b78; font-size: 14px; min-height: 21px; }
+      .boot { color: #9ba4b4; }
+    </style>
+  </head>
+  <body>
+    <p class="boot" id="boot">Открываю…</p>
+    <form class="gate" id="gate" hidden>
+      <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M10 12.5C10 8.4 12.7 6 16 6s6 2.4 6 6.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><circle cx="16" cy="19.5" r="8.5" fill="currentColor"/></svg>
+      <h1>20 минут с гирей</h1>
+      <p>Тренировки с 3D-разбором техники. Доступ по паролю.</p>
+      <input type="text" name="username" value="kb20" autocomplete="username" hidden />
+      <label>Пароль<input type="password" id="pw" name="password" autocomplete="current-password" required autofocus /></label>
+      <label class="remember"><input type="checkbox" id="remember" checked /> Запомнить на этом устройстве</label>
+      <p class="error" id="error" role="alert"></p>
+      <button type="submit" id="go">Войти</button>
+    </form>
+    <script type="module">
+      const PREFIX = 'kb20:key:';
+      const $ = (id) => document.getElementById(id);
+      const b64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+      const toB64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf)));
+      const enc = await fetch('./app.enc?v=a32370f64c31', { cache: 'no-cache' }).then((r) => r.json());
+      const keyName = PREFIX + enc.salt;
+      for (const k of Object.keys(localStorage)) if (k.startsWith(PREFIX) && k !== keyName) localStorage.removeItem(k);
+
+      async function derive(password) {
+        const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']);
+        return crypto.subtle.deriveKey({ name: 'PBKDF2', salt: b64(enc.salt), iterations: enc.iter, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, true, ['decrypt']);
+      }
+      async function unlock(key) {
+        const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64(enc.iv) }, key, b64(enc.data));
+        return JSON.parse(new TextDecoder().decode(plain));
+      }
+      async function start(app) {
+        document.title = '20 минут с гирей';
+        document.body.innerHTML = app.html;
+        const style = document.createElement('style');
+        style.textContent = app.css;
+        document.head.append(style);
+        window.__kbGate = { logout() { localStorage.removeItem(keyName); location.reload(); } };
+        await import(URL.createObjectURL(new Blob([app.js], { type: 'text/javascript' })));
+      }
+      function showForm() {
+        $('boot').hidden = true;
+        $('gate').hidden = false;
+        $('pw').focus();
+      }
+
+      const saved = localStorage.getItem(keyName);
+      let app = null;
+      if (saved) {
+        try {
+          app = await unlock(await crypto.subtle.importKey('raw', b64(saved), 'AES-GCM', true, ['decrypt']));
+        } catch {
+          localStorage.removeItem(keyName);
+        }
+      }
+      if (app) await start(app);
+      else showForm();
+
+      $('gate').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        $('go').disabled = true;
+        $('go').textContent = 'Проверяю…';
+        $('error').textContent = '';
+        try {
+          const key = await derive($('pw').value);
+          const opened = await unlock(key);
+          if ($('remember').checked) localStorage.setItem(keyName, toB64(await crypto.subtle.exportKey('raw', key)));
+          await start(opened);
+        } catch {
+          $('error').textContent = 'Неверный пароль';
+          $('go').disabled = false;
+          $('go').textContent = 'Войти';
+          $('pw').select();
+        }
+      });
+    </script>
+  </body>
+</html>
