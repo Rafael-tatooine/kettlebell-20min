@@ -50,7 +50,7 @@
       const $ = (id) => document.getElementById(id);
       const b64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
       const toB64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf)));
-      const enc = await fetch('./app.enc?v=6e4fde4b9a45', { cache: 'no-cache' }).then((r) => r.json());
+      const enc = await fetch('./app.enc?v=1f2a239829a8', { cache: 'no-cache' }).then((r) => r.json());
       const keyName = PREFIX + enc.salt;
       for (const k of Object.keys(localStorage)) if (k.startsWith(PREFIX) && k !== keyName) localStorage.removeItem(k);
 
@@ -62,13 +62,14 @@
         const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64(enc.iv) }, key, b64(enc.data));
         return JSON.parse(new TextDecoder().decode(plain));
       }
-      async function start(app) {
+      async function start(app, key) {
         document.title = '20 минут с гирей';
         document.body.innerHTML = app.html;
         const style = document.createElement('style');
         style.textContent = app.css;
         document.head.append(style);
-        window.__kbGate = { logout() { localStorage.removeItem(keyName); location.reload(); } };
+        // Ключ нужен приложению, чтобы расшифровывать записи голоса.
+        window.__kbGate = { key, logout() { localStorage.removeItem(keyName); location.reload(); } };
         await import(URL.createObjectURL(new Blob([app.js], { type: 'text/javascript' })));
       }
       function showForm() {
@@ -79,17 +80,20 @@
 
       const saved = localStorage.getItem(keyName);
       let app = null;
+      let savedKey = null;
       if (saved) {
         try {
-          app = await unlock(await crypto.subtle.importKey('raw', b64(saved), 'AES-GCM', true, ['decrypt']));
+          savedKey = await crypto.subtle.importKey('raw', b64(saved), 'AES-GCM', true, ['decrypt']);
+          app = await unlock(savedKey);
         } catch {
           localStorage.removeItem(keyName);
         }
       }
-      if (app) await start(app);
+      if (app) await start(app, savedKey);
       else showForm();
 
-      $('gate').addEventListener('submit', async (e) => {
+      // После запуска приложения формы входа уже нет на странице.
+      $('gate')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         $('go').disabled = true;
         $('go').textContent = 'Проверяю…';
@@ -98,7 +102,7 @@
           const key = await derive($('pw').value);
           const opened = await unlock(key);
           if ($('remember').checked) localStorage.setItem(keyName, toB64(await crypto.subtle.exportKey('raw', key)));
-          await start(opened);
+          await start(opened, key);
         } catch {
           $('error').textContent = 'Неверный пароль';
           $('go').disabled = false;
